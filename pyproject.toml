@@ -1,0 +1,25 @@
+[project]
+name = "agentic-ai-cohort"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "alexandra272003", email = "alexandraoffical2003@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "groq>=1.7.0",
+    "matplotlib>=3.11.2",
+    "numpy>=2.5.4",
+    "python-dotenv>=1.2.4",
+    "scikit-learn>=1.9.1",
+    "seaborn>=0.13.2",
+    "sentence-transformers>=6.2.0",
+]
+
+[project.scripts]
+agentic-ai-cohort = "agentic_ai_cohort:main"
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13.0"]
+build-backend = "uv_build"
