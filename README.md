@@ -234,6 +234,205 @@ After completing this class, I learned:
 
 ---
 
-**Class 02 completed!** Continuing my journey into Prompt Engineering and Agentic AI.
+# Part 03 – RAG with LangChain, Qdrant & Groq
 
-#AgenticAI #PromptEngineering #LLM #ChainOfThought #SelfConsistency #Groq #Python #LearningInPublic
+Welcome to Class 03 of my **Agentic AI Engineering** learning journey.
+
+This class focused on **Retrieval-Augmented Generation (RAG)**: giving an LLM access to my own documents so it answers from real source material instead of guessing.
+
+I built a complete RAG pipeline in `rag.py` that reads a Node.js PDF, stores it in a **Qdrant vector database running in Docker**, and answers questions using the **Groq API** as the LLM.
+
+## 📚 Topics Covered
+
+### 1. What is RAG?
+
+LLMs only know what they were trained on. RAG fixes this by retrieving relevant pieces of my own data and passing them to the LLM along with the question.
+
+**The RAG flow:**
+
+```text
+INDEXING (done once)
+Data source (PDF) → load page by page → split into chunks
+                  → embedding model → vectors stored in vector DB (Qdrant)
+
+QUERYING (every question)
+1. User question → embedding model → question vector
+2. Search the vector DB → most relevant chunks from the data source
+3. Relevant chunks + question → LLM
+4. LLM → gives the answer
+```
+
+**Concepts learned:**
+- Retrieval-Augmented Generation (RAG)
+- Why LLMs need external knowledge
+- Indexing vs querying
+- Storing paragraph text with the vector, so the data source is not read again
+- Grounding answers in context to reduce hallucination
+
+### 2. Document Loading
+
+Used LangChain's `PyPDFLoader` to read the PDF.
+
+- Loads the PDF **page by page** (one `Document` per page).
+- Each document keeps metadata such as the page number, used later for source references.
+
+### 3. Text Splitting (Chunking)
+
+Large pages are split into smaller chunks so retrieval is precise and fits the LLM context.
+
+- `RecursiveCharacterTextSplitter` splits on paragraphs and sentences first.
+- `chunk_size = 1000`
+- `chunk_overlap = 200`: neighbouring chunks share some content so context is not lost at the boundaries.
+
+### 4. Embeddings
+
+Each chunk is converted into a vector so that similar meanings sit close together.
+
+**Embedding options explored:**
+
+| Provider | Model | Cost |
+|----------|-------|------|
+| OpenAI | `text-embedding-3-large` | Paid API |
+| Ollama (Docker) | `nomic-embed-text` | Free, runs locally |
+| Sentence Transformers | `all-MiniLM-L6-v2` | Free, runs locally |
+
+**Important:** each embedding model produces a different vector size, so every provider gets its own Qdrant collection. Changing the model requires re-indexing.
+
+### 5. Vector Database – Qdrant (Docker)
+
+Qdrant is the vector database that stores the chunk vectors and performs similarity search.
+
+Started with Docker Compose:
+
+```yaml
+services:
+  qdrant:
+    image: qdrant/qdrant
+    ports:
+      - "6333:6333"
+```
+
+- Runs at `http://localhost:6333`.
+- Dashboard available at `http://localhost:6333/dashboard`.
+- A Docker volume keeps the stored vectors after restart.
+
+### 6. Storing and Retrieving
+
+**Store:** `QdrantVectorStore.from_documents(...)` embeds the split chunks and saves them in the `learning_langchain` collection. This is only needed once, so indexing is skipped on later runs.
+
+**Retrieve:** `QdrantVectorStore.from_existing_collection(...)` connects to the saved collection, and `similarity_search(query=...)` returns the most relevant chunks for a question.
+
+### 7. Generating the Answer with Groq
+
+The retrieved chunks are inserted into the system prompt as context:
+
+```text
+You are a helpful AI assistant who responds based on the available context.
+```
+
+The Groq LLM answers using only that context. If the answer is not in the retrieved chunks, it says it does not know. The answer also shows the **source page numbers**.
+
+## 📊 Example Run
+
+```text
+125 pages loaded
+266 chunks created
+Embedding and storing in Qdrant ...
+Indexing done.
+
+You: what is JSON Web Tokens
+Assistant: JSON Web Tokens (JWTs) are a compact, URL-safe way to represent claims ...
+(Sources: pages 19, 81, 82)
+```
+
+## ⚙️ Technologies Used
+
+- Python
+- LangChain (`langchain-community`, `langchain-text-splitters`, `langchain-qdrant`)
+- PyPDF
+- Qdrant (vector database)
+- Docker & Docker Compose
+- Groq API (LLM)
+- Ollama / Sentence Transformers / OpenAI (embeddings)
+- Python-dotenv
+
+## 📂 Project Structure
+
+```text
+Class-03/
+│
+├── rag.py
+├── docker-compose.yml
+├── nodejs.pdf
+├── .env
+└── README.md
+```
+
+## ⚙️ Installation
+
+Install the required packages:
+
+```bash
+uv add langchain-community langchain-text-splitters langchain-qdrant qdrant-client pypdf langchain-ollama
+```
+
+Optional embedding providers:
+
+```bash
+uv add langchain-openai        # OpenAI embeddings (paid)
+uv add langchain-huggingface   # local Sentence Transformers (free)
+```
+
+Configure `.env`:
+
+```env
+GROQ_API_KEY=your_groq_api_key
+
+# ollama (default) | local | openai
+EMBEDDING_PROVIDER=ollama
+
+# Only if using OpenAI embeddings
+# OPENAI_API_KEY=your_openai_api_key
+```
+
+## ▶️ Execution
+
+1. Start Docker Desktop, then start Qdrant (and Ollama if used for embeddings):
+
+```bash
+docker compose up -d
+docker start ollama
+```
+
+2. Place the PDF in the project folder as `nodejs.pdf`.
+
+3. Run the RAG assistant:
+
+```bash
+uv run rag.py
+```
+
+The PDF is indexed on the first run only. To rebuild the vectors after changing the PDF or embedding model:
+
+```bash
+uv run rag.py --reindex
+```
+
+Type `chunks` while chatting to see which chunks were retrieved, and `exit` to quit.
+
+## 🎯 Learning Outcomes
+
+After completing this class, I learned:
+
+- What RAG is and why it reduces hallucination.
+- How to load PDFs page by page with `PyPDFLoader`.
+- How chunk size and chunk overlap affect retrieval.
+- How embedding models turn text into vectors, and why vector sizes differ between models.
+- How to run a Qdrant vector database with Docker Compose.
+- How to store vectors and run similarity search with LangChain and Qdrant.
+- How to pass retrieved context and a question to an LLM through a system prompt.
+- How to show source pages so answers can be verified.
+- How to run embeddings and models locally with Ollama in Docker.
+
+---
+#AgenticAI #RAG #Qdrant #LangChain #VectorDatabase #Docker #Groq #Ollama #Python #LearningInPublic
