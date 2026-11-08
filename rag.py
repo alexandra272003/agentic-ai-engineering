@@ -48,7 +48,9 @@ OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 COLLECTION_NAME = f"{BASE_COLLECTION}_{EMBEDDING_PROVIDER}"
 
 SYSTEM_PROMPT = """You are a helpful AI assistant who responds based on the available context.
-If the answer is not in the context, say you don't know. Do not make things up.
+Use ONLY the context below. Do not add information from your own knowledge.
+Only cite a page if the text in the context from that page supports your statement.
+If the context only partly answers the question, answer that part and say what is missing.
 
 Context:
 {context}
