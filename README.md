@@ -233,7 +233,4 @@ After completing this class, I learned:
 - How Self-Consistency, Persona-Based, and Role-Play prompting work.
 
 ---
-
-**Class 02 completed!** Continuing my journey into Prompt Engineering and Agentic AI.
-
 #AgenticAI #PromptEngineering #LLM #ChainOfThought #SelfConsistency #Groq #Python #LearningInPublic
