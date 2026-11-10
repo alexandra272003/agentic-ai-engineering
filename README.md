@@ -575,6 +575,146 @@ After completing this class, I learned:
 - Why retrieval cut-offs (`TOP_N`) can decide whether the right chunk reaches the LLM.
 - How to compare retrieval methods and verify an LLM's cited sources.
 
+# Part 05 – LLM Router: Picking the Cheapest Model That Can Do the Job
+
+Welcome to Class 05 of my **Agentic AI Engineering** learning journey.
+
+Using one big model for every question wastes money. A greeting does not need the same model as a system design problem. This class focused on building an **LLM Router**: a small, cheap LLM reads the user's question and a catalog of models, then picks the **cheapest model that can still handle the task** and explains why.
+
+I built the router in `llm_router.py` using the **Groq API** for both routing and the model catalog.
+
+## 📚 Topics Covered
+
+### 1. What is an LLM Router?
+
+```text
+User question
+   → router LLM (small, cheap) reads question + model catalog
+   → returns JSON: { model, difficulty, reason }
+   → (optional) the chosen model answers the question
+```
+
+**Concepts learned:**
+- Why model routing reduces cost
+- Matching task type and difficulty to model capability
+- Using an LLM as a decision maker, not just an answerer
+- Returning structured JSON from an LLM
+
+### 2. The Model Catalog
+
+Each model has a name, kind, type, price, a complexity limit (1–5) and what it is good for.
+
+| Model | Kind | Best for | Price per 1M tokens (in / out) |
+|-------|------|----------|-------------------------------|
+| `openai/gpt-oss-20b` | chat | general chat, logic, medium coding | $0.075 / $0.30 |
+| `openai/gpt-oss-120b` | chat | hardest math, coding, system design | $0.15 / $0.60 |
+| `qwen/qwen3.8-27b` | chat | Hindi and other languages, vision, creative writing | $0.80 / $4.00 |
+| `openai/gpt-oss-safeguard-20b` | chat | safety and content moderation | $0.075 / $0.30 |
+| `allam-2-7b` | chat | Arabic and simple English | price not confirmed (assumed) |
+| `whisper-large-v3-turbo` | audio | cheap speech-to-text | $0.04 per hour |
+| `whisper-large-v3` | audio | noisy or accented audio | $0.111 per hour |
+
+Prices change often, so they should be rechecked on the Groq pricing page.
+
+### 3. Routing Rules (System Prompt)
+
+The router is told to:
+1. Judge the difficulty (1–5) and the task type.
+2. Choose the **cheapest** model whose kind, type and complexity limit fit.
+3. Use specialised models (moderation, multilingual, Arabic, audio) only when the task matches.
+4. Return `NONE` if no model in the catalog can do the task.
+
+### 4. Structured Output with JSON Mode
+
+`response_format={"type": "json_object"}` forces the router to reply in JSON, which is parsed with `json.loads`. The chosen model name is checked against the catalog so the router cannot invent a model.
+
+### 5. Auto-Detecting Available Models
+
+Groq retires and restricts models often. At startup the script calls `client.models.list()` and keeps only the catalog models that **my account can actually use**. The router model is also chosen from the available ones.
+
+### 6. Safety Net in Plain Python
+
+LLM judgments can be wrong, so code checks them:
+- **Difficulty upgrade:** if the router rates a question harder than the chosen model's limit, the code upgrades to the cheapest chat model that can handle it.
+- **Fallback:** if routing fails (network, rate limit), use the cheapest chat model.
+- **BLOCKED:** if the router refuses a request (Groq returns `json_validate_failed`), the request is **not forwarded** to any other model.
+
+## 📊 Example Run
+
+```text
+Router model : openai/gpt-oss-20b
+
+Ask your question: audio file
+  Model      : whisper-large-v3-turbo
+  Difficulty : 1
+  Why        : Cheapest audio transcription model ($0.04/hr), suitable for general audio files.
+
+Ask your question: nested folders with 1000000 files
+  Model      : openai/gpt-oss-20b
+  Difficulty : 4
+  Why        : Coding and system design task; the 20B model supports up to 4/5 at a low cost.
+```
+
+## 💡 Lessons Learned
+
+- **Models get retired:** `llama-3.1-8b-instant` returned a 404 on my account, and `llama-3.3-70b-versatile` was retired. Never hardcode model names without checking what is available.
+- **The router can only pick what is in the list:** with no audio model in the catalog, it sent "audio file" to a text model, which cannot process audio. Adding audio models with a `kind` field and a `NONE` option fixed it.
+- **A fallback can be dangerous:** my first fallback sent a refused request to the cheapest model. Refusals must be blocked, not forwarded.
+- **Vague questions get guessed:** a short query like "nested folders with 1000000 files" has several meanings, so the router has to guess. Clearer questions give better routing.
+- **Cheapest model wins ties:** `gpt-oss-20b` is both cheap and capable, so it wins most questions. Routing only becomes interesting with different model types in the catalog.
+- **Different models, different pricing units:** chat models are priced per token and audio models per hour, so they cannot be compared with one number.
+- **Prices drift:** costs in the catalog need rechecking before relying on them.
+
+## ⚙️ Technologies Used
+
+- Python
+- Groq API and Groq Python SDK
+- JSON mode (structured output)
+- Python-dotenv
+- Prompt engineering (system prompt with rules and catalog)
+
+## 📂 Project Structure
+
+```text
+Class-05/
+│
+├── llm_router.py
+├── .env
+└── README.md
+```
+
+## ⚙️ Installation
+
+```bash
+uv add groq python-dotenv
+```
+
+Configure `.env`:
+
+```env
+GROQ_API_KEY=your_groq_api_key
+```
+
+## ▶️ Execution
+
+```bash
+uv run llm_router.py
+```
+
+Type a question to see the chosen model, difficulty and reason. Type `exit` to quit.
+
+## 🎯 Learning Outcomes
+
+After completing this class, I learned:
+
+- Why routing each question to the cheapest capable model saves money.
+- How to describe models (type, cost, complexity) so an LLM can choose between them.
+- How to force and validate JSON output from an LLM.
+- How to check which models an account can use instead of hardcoding names.
+- Why LLM decisions need code-based safety checks (upgrade, fallback, block).
+- Why a router needs a "no model fits" option and must not forward refused requests.
+- How specialised models (audio, moderation, multilingual) fit into a router.
+
 ---
 
-#AgenticAI #RAG #AdvancedRAG #HyDE #ReciprocalRankFusion #Qdrant #LangChain #Groq #Python #LearningInPublic
+#AgenticAI #LLMRouter #Groq #PromptEngineering #Python #LearningInPublic
