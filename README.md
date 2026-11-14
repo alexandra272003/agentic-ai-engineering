@@ -715,6 +715,146 @@ After completing this class, I learned:
 - Why a router needs a "no model fits" option and must not forward refused requests.
 - How specialised models (audio, moderation, multilingual) fit into a router.
 
----
+# Part 06 – LangGraph: State, Nodes & Router Edges
 
-#AgenticAI #LLMRouter #Groq #PromptEngineering #Python #LearningInPublic
+Welcome to Class 06 of my **Agentic AI Engineering** learning journey.
+
+This class focused on orchestrating an LLM workflow as a graph using LangGraph, where a shared state moves through nodes and a router edge decides which path to take.
+
+I implemented a query router in `graph.py` that detects whether a question is about coding or not, then sends it to the right Groq model.
+
+## 📚 Topics Covered
+
+### 1. Graph State
+
+Defined the shared data that every node can read and update using a `TypedDict`.
+
+**State fields:**
+- `user_query`: the question typed by the user.
+- `query_type`: `coding` or `simple`, set by the detection node.
+- `answer`: the final answer.
+- `model_used`: which model answered.
+
+**Concepts learned:**
+- Shared state across nodes
+- Nodes return only the keys they change
+- State merging in LangGraph
+
+### 2. Nodes
+
+Created three nodes as normal Python functions that take the state and return updates.
+
+**Implementation features:**
+- `detect_query`: classifies the question as `coding` or `simple` using `openai/gpt-oss-20b`.
+- `solve_coding_question`: answers coding questions using `openai/gpt-oss-120b`.
+- `solve_simple_question`: answers all other questions using `openai/gpt-oss-20b`.
+- Helper function `ask()` to call the Groq API from every node.
+
+### 3. Router Edge (Conditional Edge)
+
+Created `route_query`, a function that reads `query_type` from the state and returns the name of the next node.
+
+**Flow:**
+
+```text
+                      +--> solve_coding_question ---+
+START --> detect_query --(router edge)                +--> END
+                      +--> solve_simple_question ---+
+```
+
+**Concepts learned:**
+- `add_edge` for fixed connections
+- `add_conditional_edges` for branching
+- Routing based on the current state
+- Cheaper model for simple questions, stronger model for coding
+
+### 4. Building and Running the Graph
+
+```python
+builder = StateGraph(State)
+builder.add_node("detect_query", detect_query)
+builder.add_node("solve_coding_question", solve_coding_question)
+builder.add_node("solve_simple_question", solve_simple_question)
+
+builder.add_edge(START, "detect_query")
+builder.add_conditional_edges("detect_query", route_query)
+builder.add_edge("solve_coding_question", END)
+builder.add_edge("solve_simple_question", END)
+
+graph = builder.compile()
+result = graph.invoke({"user_query": "hello"})
+```
+
+**Example run:**
+
+```text
+Ask your question: hello
+[detect_query] -> simple
+Model used : openai/gpt-oss-20b
+
+Ask your question: write a python function to reverse a linked list
+[detect_query] -> coding
+Model used : openai/gpt-oss-120b
+```
+
+### 5. Problems Faced
+
+- `uv add langgraph langchain-groq` failed because `langchain-groq` needs `groq` below version 1.0, while my project uses `groq` 1.x. Fixed by calling the Groq SDK directly inside the nodes.
+- A stale `GROQ_API_KEY` in the terminal caused `401 Invalid API Key`. Fixed by removing it and using `load_dotenv(override=True)`.
+- An old import error stayed because the file on disk was not updated. Checked with `Select-String`.
+- Pasting terminal output into the prompt made the graph treat it as a question.
+
+## ⚙️ Technologies Used
+
+- Python
+- LangGraph
+- Groq API
+- Groq Python SDK
+- Python-dotenv
+- uv
+
+## 📂 Project Structure
+
+```text
+Class-06/
+│
+├── graph.py
+├── .env
+└── README.md
+```
+
+## ▶️ Execution
+
+Install the required packages:
+
+```bash
+uv add langgraph groq python-dotenv
+```
+
+Configure your Groq API key in a `.env` file:
+
+```env
+GROQ_API_KEY=your_groq_api_key
+```
+
+Run the graph:
+
+```bash
+uv run graph.py
+```
+
+Type a question to see the detected type, the model used and the answer. Type `exit` to quit.
+
+## 🎯 Learning Outcomes
+
+After completing this class, I learned:
+
+- How to define a shared state for a LangGraph workflow.
+- How to write nodes that update the state.
+- How a router edge chooses the next node based on the state.
+- How to route questions to cheaper or stronger models.
+- How to build, compile and run a graph.
+- How to fix package version conflicts by using the SDK directly.
+- How to debug stale files and stale environment variables.
+
+---
